@@ -2,7 +2,8 @@ import pytest
 from feature.inventory import (
     Inventory,
     InvalidQuantityException,
-    NoSpaceException
+    NoSpaceException,
+    ItemNotFoundException
 )
 
 
@@ -10,6 +11,15 @@ from feature.inventory import (
 def no_stock_inventory():
     """Returns an empty inventory that can store 10 items"""
     return Inventory(10)
+
+
+@pytest.fixture
+def ten_stock_inventory():
+    """Returns an inventory with some test stock items"""
+    inventory = Inventory(20)
+    inventory.add_new_stock('Puma Test', 100.00, 8)
+    inventory.add_new_stock('Reebok Test', 25.50, 2)
+    return inventory
 
 
 def test_buy_and_sell_nikes_adidas():
@@ -70,3 +80,27 @@ def test_add_new_stock(no_stock_inventory, name, price, quantity, exception):
         assert no_stock_inventory.stocks[name]['quantity'] == quantity
 
 
+@pytest.mark.parametrize('name,quantity,exception,new_quantity,new_total', [
+    ('Puma Test', 0,
+        InvalidQuantityException(
+            'Cannot remove a quantity of 0. Must remove at least 1 item'),
+        0, 0),
+    ('Not Here', 5,
+        ItemNotFoundException(
+            'Could not find Not Here in our stocks. Cannot remove non-existing stock'),
+        0, 0),
+    ('Puma Test', 25,
+        InvalidQuantityException(
+            'Cannot remove these 25 items. Only 8 items are in stock'),
+        0, 0),
+    ('Puma Test', 5, None, 3, 5)
+])
+def test_remove_stock(ten_stock_inventory, name, quantity, exception, new_quantity, new_total):
+    try:
+        ten_stock_inventory.remove_stock(name, quantity)
+    except (InvalidQuantityException, NoSpaceException, ItemNotFoundException) as inst:
+        assert isinstance(inst, type(exception))
+        assert inst.args == exception.args
+    else:
+        assert ten_stock_inventory.stocks[name]['quantity'] == new_quantity
+        assert ten_stock_inventory.total_items == new_total
